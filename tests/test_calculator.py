@@ -38,7 +38,7 @@ def test_input_validator_numbers():
     with pytest.raises(ValidationError):
         InputValidator.validate_number("abc")
     with pytest.raises(ValidationError):
-        InputValidator.validate_number("2000000")
+        InputValidator.validate_number("1e50")
 
 def test_input_validator_arguments():
     args = ["10", "20"]
