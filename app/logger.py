@@ -1,43 +1,44 @@
-import logging
+"""Observer pattern implementation for logging and auto-saving calculation events."""
 from abc import ABC, abstractmethod
-import pandas as pd
-from app.calculator_config import Config
+import logging
+from pathlib import Path
+from app.calculation import Calculation
+from app.calculator_config import CalculatorConfig
+from app.history import CalculationHistory
+
+Path(CalculatorConfig.CALCULATOR_LOG_DIR).mkdir(parents=True, exist_ok=True)
+logging.basicConfig(
+    filename=CalculatorConfig.CALCULATOR_LOG_FILE,
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    encoding=CalculatorConfig.CALCULATOR_DEFAULT_ENCODING
+)
 
 class Observer(ABC):
+    """Abstract Observer interface."""
     @abstractmethod
-    def update(self, calculation):
+    def update(self, calculation: Calculation):
         pass
 
-class LoggingObserver(Observer):
-    def __init__(self):
-        Config.validate_and_setup()
-        log_file = Config.LOG_DIR / "calculator.log"
-        
-        self.logger = logging.getLogger("CalculatorLogger")
-        self.logger.setLevel(logging.INFO)
-        
-        if not self.logger.handlers:
-            handler = logging.FileHandler(log_file, encoding=Config.DEFAULT_ENCODING)
-            formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-            handler.setFormatter(formatter)
-            self.logger.addHandler(handler)
 
-    def update(self, calculation):
-        msg = f"Op: {calculation.operation_name}, Operands: ({calculation.a}, {calculation.b}), Result: {calculation.result}"
-        self.logger.info(msg)
+class LoggingObserver(Observer):
+    """Logs calculation details to the configured log file."""
+    def update(self, calculation: Calculation):
+        logging.info(
+            f"Operation: {calculation.operation_name} | "
+            f"Operands: ({calculation.a}, {calculation.b}) | "
+            f"Result: {calculation.result}"
+        )
+
 
 class AutoSaveObserver(Observer):
-    def __init__(self, history_manager):
+    """Automatically saves calculation history to CSV when enabled."""
+    def __init__(self, history_manager: CalculationHistory):
         self.history_manager = history_manager
-        Config.validate_and_setup()
-        self.history_file = Config.HISTORY_DIR / "history.csv"
 
-    def update(self, calculation):
-        if Config.AUTO_SAVE:
-            self.save_to_csv()
-
-    def save_to_csv(self):
-        data = [c.to_dict() for c in self.history_manager.get_history()]
-        if data:
-            df = pd.DataFrame(data)
-            df.to_csv(self.history_file, index=False, encoding=Config.DEFAULT_ENCODING)
+    def update(self, calculation: Calculation):
+        if CalculatorConfig.CALCULATOR_AUTO_SAVE:
+            try:
+                self.history_manager.save_to_csv()
+            except Exception as e:
+                logging.error(f"AutoSave failed: {e}")
